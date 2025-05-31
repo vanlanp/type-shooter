@@ -10,12 +10,20 @@
 
 @font-face {
   font-family: 'Wanted';
-  src: url('https://fonts.cdnfonts.com/css/wanted-m54') format('woff2');
+  src: url('/fonts/wanted.woff2') format('woff2'),
+       url('/fonts/wanted.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
   font-family: 'Western';
-  src: url('https://fonts.cdnfonts.com/css/western') format('woff2');
+  src: url('/fonts/western.woff2') format('woff2'),
+       url('/fonts/western.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
 }
 
 html, body {
