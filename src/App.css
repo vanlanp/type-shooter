@@ -1,0 +1,212 @@
+@import url('https://fonts.googleapis.com/css2?family=Rye&display=swap');
+
+:root {
+  --primary-color: #2c3e50;
+  --accent-color: #8b0000;
+  --gold-color: #daa520;
+  --text-color: #ecf0f1;
+  --disabled-color: #666;
+}
+
+@font-face {
+  font-family: 'Wanted';
+  src: url('https://fonts.cdnfonts.com/css/wanted-m54') format('woff2');
+}
+
+@font-face {
+  font-family: 'Western';
+  src: url('https://fonts.cdnfonts.com/css/western') format('woff2');
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Rye', 'Western', cursive;
+  overflow-x: hidden;
+}
+
+#root {
+  height: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.game-container {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+  border-radius: 15px;
+  padding: 2rem;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shoot {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1) rotate(-5deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    text-shadow: 0 0 10px var(--gold-color);
+  }
+  50% {
+    text-shadow: 0 0 20px var(--gold-color), 0 0 30px var(--gold-color);
+  }
+}
+
+.result-title {
+  animation: glow 2s infinite;
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+  color: var(--gold-color);
+  font-size: 1.2rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  margin: 1rem 0;
+}
+
+button:active {
+  animation: shoot 0.3s ease-out;
+}
+
+button:disabled {
+  background: var(--disabled-color) !important;
+  border-color: var(--disabled-color) !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+input:disabled {
+  background: rgba(0, 0, 0, 0.5) !important;
+  border-color: var(--disabled-color) !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+@keyframes countdownPulse {
+  0% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+/* Decorative elements */
+.western-border {
+  position: relative;
+}
+
+.western-border::before,
+.western-border::after {
+  content: '🌵';
+  position: absolute;
+  font-size: 2rem;
+}
+
+.western-border::before {
+  left: -2rem;
+}
+
+.western-border::after {
+  right: -2rem;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gold-color);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
