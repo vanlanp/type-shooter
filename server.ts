@@ -8,13 +8,12 @@ const httpServer = createServer(app);
 
 // Define allowed origins
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? ['https://type-shooter.vercel.app']
+  ? [
+      'https://type-shooter.vercel.app',
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
+      process.env.VERCEL_URL ? `http://${process.env.VERCEL_URL}` : ''
+    ].filter(Boolean)
   : ['http://localhost:5173'];
-
-// Add Vercel URL to allowed origins if it exists
-if (process.env.VERCEL_URL) {
-  allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
-}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -26,14 +25,18 @@ app.use((err, req, res, next) => {
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
   },
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,
   },
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  path: '/socket.io/'
 });
 
 // Handle Socket.IO errors
