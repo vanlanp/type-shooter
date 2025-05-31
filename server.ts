@@ -20,20 +20,39 @@ if (process.env.VERCEL_URL) {
   allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
 }
 
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// Initialize Socket.IO with error handling
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"]
-  }
+  },
+  connectionStateRecovery: {
+    // the backup duration of the sessions and the packets
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    // whether to skip middlewares upon successful recovery
+    skipMiddlewares: true,
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Serve static files from the dist directory
-app.use(express.static(path.join(__dirname, 'dist')));
-
-// Add a catch-all route to serve index.html
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// Handle Socket.IO errors
+io.on("connect_error", (err) => {
+  console.error('Socket.IO connection error:', err);
 });
+
+io.engine.on("connection_error", (err) => {
+  console.error('Socket.IO engine error:', err);
+});
+
+// Store rooms in memory (note: this will be cleared on serverless function restart)
+const rooms = new Map<string, GameRoom>();
 
 interface PlayerStats {
   wins: number;
@@ -51,7 +70,6 @@ interface GameRoom {
   countdownStarted?: boolean;
 }
 
-const rooms: Map<string, GameRoom> = new Map();
 const words = [
   // Classic Western Items
   "sheriff", "wanted", "bounty", "outlaw", "saloon",
@@ -111,90 +129,120 @@ function startCountdown(roomId: string) {
       }
     }
   }, 1000);
+
+  // Ensure interval is cleared after 5 seconds (safety measure for serverless)
+  setTimeout(() => clearInterval(countdownInterval), 5000);
 }
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('createGame', () => {
-    const roomId = Math.random().toString(36).substring(2, 8);
-    rooms.set(roomId, {
-      players: [socket.id],
-      word: getRandomWord(),
-      gameStarted: false,
-      round: 1,
-      playerStats: {
-        [socket.id]: { wins: 0, totalGames: 0, fastestTime: Infinity }
-      },
-      countdownStarted: false
-    });
-    socket.join(roomId);
-    socket.emit('gameCreated', roomId);
+    try {
+      const roomId = Math.random().toString(36).substring(2, 8);
+      rooms.set(roomId, {
+        players: [socket.id],
+        word: getRandomWord(),
+        gameStarted: false,
+        round: 1,
+        playerStats: {
+          [socket.id]: { wins: 0, totalGames: 0, fastestTime: Infinity }
+        },
+        countdownStarted: false
+      });
+      socket.join(roomId);
+      socket.emit('gameCreated', roomId);
+    } catch (error) {
+      console.error('Error creating game:', error);
+      socket.emit('error', 'Failed to create game');
+    }
   });
 
   socket.on('joinGame', (roomId: string) => {
-    const room = rooms.get(roomId);
-    if (room && room.players.length < 2) {
-      room.players.push(socket.id);
-      room.playerStats[socket.id] = { wins: 0, totalGames: 0, fastestTime: Infinity };
-      socket.join(roomId);
-      if (room.players.length === 2) {
-        room.gameStarted = true;
-        io.to(roomId).emit('gameStart');
-        startCountdown(roomId);
+    try {
+      const room = rooms.get(roomId);
+      if (room && room.players.length < 2) {
+        room.players.push(socket.id);
+        room.playerStats[socket.id] = { wins: 0, totalGames: 0, fastestTime: Infinity };
+        socket.join(roomId);
+        if (room.players.length === 2) {
+          room.gameStarted = true;
+          io.to(roomId).emit('gameStart');
+          startCountdown(roomId);
+        }
+      } else {
+        socket.emit('joinError', 'Room is full or does not exist');
       }
-    } else {
-      socket.emit('joinError', 'Room is full or does not exist');
+    } catch (error) {
+      console.error('Error joining game:', error);
+      socket.emit('error', 'Failed to join game');
     }
   });
 
   socket.on('submitWord', ({ roomId, word }) => {
-    const room = rooms.get(roomId);
-    if (room && room.gameStarted && room.word === word) {
-      const roundTime = Date.now() - (room.roundStartTime || Date.now());
-      const timeInSeconds = (roundTime / 1000).toFixed(2);
-      room.playerStats[socket.id].fastestTime = Math.min(
-        room.playerStats[socket.id].fastestTime,
-        roundTime
-      );
-      room.playerStats[socket.id].wins++;
-      room.playerStats[socket.id].totalGames++;
-      
-      const otherPlayerId = room.players.find(id => id !== socket.id);
-      if (otherPlayerId) {
-        room.playerStats[otherPlayerId].totalGames++;
-      }
+    try {
+      const room = rooms.get(roomId);
+      if (room && room.gameStarted && room.word === word) {
+        const roundTime = Date.now() - (room.roundStartTime || Date.now());
+        const timeInSeconds = (roundTime / 1000).toFixed(2);
+        room.playerStats[socket.id].fastestTime = Math.min(
+          room.playerStats[socket.id].fastestTime,
+          roundTime
+        );
+        room.playerStats[socket.id].wins++;
+        room.playerStats[socket.id].totalGames++;
+        
+        const otherPlayerId = room.players.find(id => id !== socket.id);
+        if (otherPlayerId) {
+          room.playerStats[otherPlayerId].totalGames++;
+        }
 
-      if (room.round < 5) {
-        room.round++;
-        room.word = getRandomWord();
-        room.countdownStarted = false;
-        io.to(roomId).emit('roundEnd', {
-          winner: socket.id,
-          stats: room.playerStats,
-          timeToShoot: timeInSeconds
-        });
-        setTimeout(() => startCountdown(roomId), 2000);
-      } else {
-        io.to(roomId).emit('gameOver', {
-          winner: socket.id,
-          stats: room.playerStats,
-          timeToShoot: timeInSeconds,
-          finalWord: word
-        });
-        rooms.delete(roomId);
+        if (room.round < 5) {
+          room.round++;
+          room.word = getRandomWord();
+          room.countdownStarted = false;
+          io.to(roomId).emit('roundEnd', {
+            winner: socket.id,
+            stats: room.playerStats,
+            timeToShoot: timeInSeconds
+          });
+          setTimeout(() => startCountdown(roomId), 2000);
+        } else {
+          io.to(roomId).emit('gameOver', {
+            winner: socket.id,
+            stats: room.playerStats,
+            timeToShoot: timeInSeconds,
+            finalWord: word
+          });
+          rooms.delete(roomId);
+        }
       }
+    } catch (error) {
+      console.error('Error submitting word:', error);
+      socket.emit('error', 'Failed to submit word');
     }
   });
 
   socket.on('disconnect', () => {
-    rooms.forEach((room, roomId) => {
-      if (room.players.includes(socket.id)) {
-        io.to(roomId).emit('playerLeft');
-        rooms.delete(roomId);
-      }
-    });
+    try {
+      rooms.forEach((room, roomId) => {
+        if (room.players.includes(socket.id)) {
+          io.to(roomId).emit('playerLeft');
+          rooms.delete(roomId);
+        }
+      });
+    } catch (error) {
+      console.error('Error handling disconnect:', error);
+    }
   });
+});
+
+// Serve static files from the dist directory
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Add a catch-all route to serve index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;

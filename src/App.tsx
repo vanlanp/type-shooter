@@ -295,9 +295,51 @@ function App() {
   const [stats, setStats] = useState<Record<string, PlayerStats>>({})
   const [countdown, setCountdown] = useState<number | null>(null)
   const [showWord, setShowWord] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [timeToShoot, setTimeToShoot] = useState<string | null>(null)
   const [showResult, setShowResult] = useState(false)
+
+  useEffect(() => {
+    const handleConnectionError = (error: Error) => {
+      console.error('Connection error:', error);
+      setConnectionError('Connection error. Please try again later.');
+      setGameState('menu');
+    };
+
+    const handleError = (error: string) => {
+      console.error('Socket error:', error);
+      setConnectionError(error);
+      setGameState('menu');
+    };
+
+    const handleDisconnect = (reason: string) => {
+      console.log('Disconnected:', reason);
+      if (reason === 'io server disconnect') {
+        setConnectionError('Server disconnected. Please refresh the page.');
+      } else if (reason === 'transport close') {
+        setConnectionError('Connection lost. Attempting to reconnect...');
+      }
+      setGameState('menu');
+    };
+
+    const handleReconnect = () => {
+      console.log('Reconnected to server');
+      setConnectionError(null);
+    };
+
+    socket.on('connect_error', handleConnectionError);
+    socket.on('error', handleError);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('reconnect', handleReconnect);
+
+    return () => {
+      socket.off('connect_error', handleConnectionError);
+      socket.off('error', handleError);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('reconnect', handleReconnect);
+    };
+  }, []);
 
   // Input focus effect
   useEffect(() => {
@@ -467,6 +509,18 @@ function App() {
   return (
     <Container>
       <Title>🤠 Type Shooter 🎯</Title>
+      {connectionError && (
+        <div style={{
+          background: 'rgba(255, 0, 0, 0.2)',
+          padding: '1rem',
+          margin: '1rem',
+          borderRadius: '5px',
+          border: '1px solid red',
+          color: 'white'
+        }}>
+          {connectionError}
+        </div>
+      )}
       {gameState === 'menu' && (
         <GameContainer className="game-container">
           <Button onClick={createGame}>Create New Game</Button>
