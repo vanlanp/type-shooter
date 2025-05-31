@@ -2,6 +2,7 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const httpServer = createServer(app);
@@ -15,17 +16,54 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
     ].filter(Boolean)
   : ['http://localhost:5173'];
 
+console.log('Server starting with config:', {
+  env: process.env.NODE_ENV,
+  vercelUrl: process.env.VERCEL_URL,
+  allowedOrigins
+});
+
+// CORS middleware
+app.use(cors({
+  origin: (origin, callback) => {
+    console.log('Incoming request from origin:', origin);
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.error('Origin not allowed:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Express error:', {
+    message: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    headers: req.headers
+  });
   res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok',
+    env: process.env.NODE_ENV,
+    vercelUrl: process.env.VERCEL_URL
+  });
 });
 
 // Initialize Socket.IO with error handling
 const io = new Server(httpServer, {
+  path: '/socket.io/',
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    methods: ['GET', 'POST'],
     credentials: true
   },
   connectionStateRecovery: {
@@ -34,18 +72,38 @@ const io = new Server(httpServer, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  path: '/socket.io/'
+  transports: ['polling', 'websocket'], // Try polling first
+  allowEIO3: true
+});
+
+// Socket.IO middleware for logging
+io.use((socket, next) => {
+  console.log('New socket connection attempt:', {
+    id: socket.id,
+    handshake: {
+      headers: socket.handshake.headers,
+      query: socket.handshake.query,
+      auth: socket.handshake.auth
+    }
+  });
+  next();
 });
 
 // Handle Socket.IO errors
-io.on("connect_error", (err) => {
-  console.error('Socket.IO connection error:', err);
+io.on('connect_error', (err) => {
+  console.error('Socket.IO connection error:', {
+    message: err.message,
+    stack: err.stack
+  });
 });
 
-io.engine.on("connection_error", (err) => {
-  console.error('Socket.IO engine error:', err);
+io.engine.on('connection_error', (err) => {
+  console.error('Socket.IO engine error:', {
+    message: err.message,
+    stack: err.stack,
+    code: err.code,
+    context: err.context
+  });
 });
 
 // Store rooms in memory (note: this will be cleared on serverless function restart)
@@ -115,7 +173,10 @@ function startCountdown(roomId) {
 }
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('Client connected:', {
+    id: socket.id,
+    transport: socket.conn.transport.name
+  });
 
   socket.on('createGame', () => {
     try {
@@ -203,7 +264,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
+    console.log('Client disconnected:', {
+      id: socket.id,
+      reason
+    });
     try {
       rooms.forEach((room, roomId) => {
         if (room.players.includes(socket.id)) {
@@ -225,6 +290,12 @@ if (process.env.NODE_ENV !== 'production') {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, () => {
+  console.log(`WebSocket server running on port ${PORT}`);
+});
 
 // Export for Vercel
 module.exports = app; 
