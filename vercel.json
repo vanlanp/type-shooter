@@ -3,7 +3,10 @@
   "builds": [
     {
       "src": "server.ts",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["dist/**"]
+      }
     },
     {
       "src": "package.json",
@@ -17,11 +20,11 @@
   "routes": [
     {
       "src": "/socket.io/(.*)",
-      "dest": "server.ts"
+      "dest": "/server.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "server.ts"
+      "dest": "/server.ts"
     }
   ]
 } 

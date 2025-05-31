@@ -1,14 +1,15 @@
+import { createServer as createHttpServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
 
 const app = express();
-const httpServer = createServer(app);
+const httpServer = createHttpServer(app);
 
 // Define allowed origins
 const allowedOrigins = process.env.NODE_ENV === 'production'
@@ -27,7 +28,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Initialize Socket.IO with error handling
-const io = new Server(httpServer, {
+const io = new SocketIOServer(httpServer, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"]
@@ -245,7 +246,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-}); 
+// Export for Vercel
+export default app;
+
+// Only listen if not in Vercel
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  httpServer.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+} 
