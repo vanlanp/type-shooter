@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import styled from 'styled-components'
-import { io as socketIO } from 'socket.io-client'
 import './App.css'
 import backgroundImage from './assets/back.jpg'
-
-const socket = socketIO('http://localhost:3000')
+import socket from './utils/socket'
 
 const Container = styled.div`
   display: flex;

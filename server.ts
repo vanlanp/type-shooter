@@ -9,15 +9,31 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+// Define allowed origins
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? ['https://type-shooter.vercel.app']
+  : ['http://localhost:5173'];
+
+// Add Vercel URL to allowed origins if it exists
+if (process.env.VERCEL_URL) {
+  allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
 
 // Serve static files from the dist directory
 app.use(express.static(path.join(__dirname, 'dist')));
+
+// Add a catch-all route to serve index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 interface PlayerStats {
   wins: number;
