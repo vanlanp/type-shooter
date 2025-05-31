@@ -1,15 +1,10 @@
-import { createServer as createHttpServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const express = require('express');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
-const httpServer = createHttpServer(app);
+const httpServer = createServer(app);
 
 // Define allowed origins
 const allowedOrigins = process.env.NODE_ENV === 'production'
@@ -22,21 +17,19 @@ if (process.env.VERCEL_URL) {
 }
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
 // Initialize Socket.IO with error handling
-const io = new SocketIOServer(httpServer, {
+const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"]
   },
   connectionStateRecovery: {
-    // the backup duration of the sessions and the packets
     maxDisconnectionDuration: 2 * 60 * 1000,
-    // whether to skip middlewares upon successful recovery
     skipMiddlewares: true,
   },
   pingTimeout: 60000,
@@ -53,55 +46,38 @@ io.engine.on("connection_error", (err) => {
 });
 
 // Store rooms in memory (note: this will be cleared on serverless function restart)
-const rooms = new Map<string, GameRoom>();
+const rooms = new Map();
 
-interface PlayerStats {
-  wins: number;
-  totalGames: number;
-  fastestTime: number;
-}
-
-interface GameRoom {
-  players: string[];
-  word: string;
-  gameStarted: boolean;
-  round: number;
-  playerStats: Record<string, PlayerStats>;
-  roundStartTime?: number;
-  countdownStarted?: boolean;
-}
-
-const words = [
-  // Classic Western Items
-  "sheriff", "wanted", "bounty", "outlaw", "saloon",
-  "cowboy", "desert", "duel", "ranch", "horse",
-  "bandit", "deputy", "cattle", "sunset", "cactus",
-  "lasso", "boots", "spurs", "saddle", "rifle",
-  
-  // Additional Western Terms
-  "frontier", "homestead", "stagecoach", "corral", "mustang",
-  "tumbleweed", "campfire", "canyon", "prairie", "rodeo",
-  "gunslinger", "marshal", "rustler", "stampede", "wagon",
-  "windmill", "hideout", "tavern", "gold", "mine",
-  
-  // Western Landscape
-  "mountain", "valley", "plateau", "gulch", "mesa",
-  "butte", "ravine", "creek", "trail", "oasis",
-  
-  // Western Activities
-  "roundup", "showdown", "ambush", "shootout", "tracking",
-  "hunting", "roping", "wrangling", "mining", "trading",
-  
-  // Western Gear
-  "holster", "bandana", "chaps", "poncho", "stirrup",
-  "canteen", "revolver", "shotgun", "dynamite", "rope"
-];
-
-function getRandomWord(): string {
+function getRandomWord() {
+  const words = [
+    // Classic Western Items
+    "sheriff", "wanted", "bounty", "outlaw", "saloon",
+    "cowboy", "desert", "duel", "ranch", "horse",
+    "bandit", "deputy", "cattle", "sunset", "cactus",
+    "lasso", "boots", "spurs", "saddle", "rifle",
+    
+    // Additional Western Terms
+    "frontier", "homestead", "stagecoach", "corral", "mustang",
+    "tumbleweed", "campfire", "canyon", "prairie", "rodeo",
+    "gunslinger", "marshal", "rustler", "stampede", "wagon",
+    "windmill", "hideout", "tavern", "gold", "mine",
+    
+    // Western Landscape
+    "mountain", "valley", "plateau", "gulch", "mesa",
+    "butte", "ravine", "creek", "trail", "oasis",
+    
+    // Western Activities
+    "roundup", "showdown", "ambush", "shootout", "tracking",
+    "hunting", "roping", "wrangling", "mining", "trading",
+    
+    // Western Gear
+    "holster", "bandana", "chaps", "poncho", "stirrup",
+    "canteen", "revolver", "shotgun", "dynamite", "rope"
+  ];
   return words[Math.floor(Math.random() * words.length)];
 }
 
-function startCountdown(roomId: string) {
+function startCountdown(roomId) {
   const room = rooms.get(roomId);
   if (!room || room.countdownStarted) return;
 
@@ -159,7 +135,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('joinGame', (roomId: string) => {
+  socket.on('joinGame', (roomId) => {
     try {
       const room = rooms.get(roomId);
       if (room && room.players.length < 2) {
@@ -246,13 +222,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// Export for Vercel
-export default app;
-
 // Only listen if not in Vercel
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
   httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
-} 
+}
+
+module.exports = app; 
