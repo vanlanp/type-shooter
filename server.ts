@@ -217,15 +217,14 @@ io.on('connection', (socket) => {
   });
 });
 
-// Serve static files from the dist directory in production
-if (process.env.NODE_ENV === 'production') {
+// Only serve static files in development
+if (process.env.NODE_ENV !== 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
   
-  // Handle all other routes by serving index.html
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
 
-// Export the server instance for Vercel
-module.exports = httpServer; 
+// Export for Vercel
+module.exports = app; 
